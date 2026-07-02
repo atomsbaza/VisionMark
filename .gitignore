@@ -1,0 +1,23 @@
+# macOS
+.DS_Store
+
+# Xcode / build artifacts
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xcscmblueprint
+*.xccheckout
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM
+*.dSYM.zip
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# XcodeGen generates the Xcode project from project.yml — regenerate with `xcodegen generate`.
+# project.yml is the source of truth and IS tracked.
+VisionMark.xcodeproj/

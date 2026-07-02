@@ -1,0 +1,62 @@
+name: VisionMark
+options:
+  bundleIdPrefix: com.pisit.koolplukpol
+  deploymentTarget:
+    macOS: "15.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    MACOSX_DEPLOYMENT_TARGET: "15.0"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    ENABLE_HARDENED_RUNTIME: YES
+    ENABLE_APP_SANDBOX: NO
+
+targets:
+  VisionMark:
+    type: application
+    platform: macOS
+    sources:
+      - path: VisionMark
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.pisit.koolplukpol.VisionMark
+        PRODUCT_NAME: VisionMark
+        INFOPLIST_KEY_NSHumanReadableCopyright: ""
+        GENERATE_INFOPLIST_FILE: YES
+        ENABLE_PREVIEWS: YES
+        CODE_SIGN_ENTITLEMENTS: VisionMark/VisionMark.entitlements
+    info:
+      path: VisionMark/Info.plist
+      properties:
+        LSApplicationCategoryType: public.app-category.productivity
+        NSHumanReadableCopyright: ""
+
+  VisionMarkTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: VisionMarkTests
+    dependencies:
+      - target: VisionMark
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.pisit.koolplukpol.VisionMarkTests
+        GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  VisionMark:
+    build:
+      targets:
+        VisionMark: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - VisionMarkTests
+    archive:
+      config: Release
