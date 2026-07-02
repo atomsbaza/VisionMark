@@ -1,5 +1,7 @@
 # VisionMark
 
+[![CI](https://github.com/atomsbaza/VisionMark/actions/workflows/ci.yml/badge.svg)](https://github.com/atomsbaza/VisionMark/actions/workflows/ci.yml)
+
 **Convert PDFs into AI-readable Markdown — including the pictures.**
 
 VisionMark is a native macOS app that turns PDFs into Markdown. Beyond extracting text, it can
