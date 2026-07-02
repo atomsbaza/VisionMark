@@ -25,7 +25,7 @@ Implemented:
   occurrence count with smallest-size tiebreak; heading threshold is body size × 1.15,
   not a fixed +0.5pt, to avoid false positives on minor font variation)
 - `Core/ConversionPipeline.swift` — actor orchestrating per-file conversion
-- `App/AppSettings.swift`, `App/PDFToMarkdownApp.swift`
+- `App/AppSettings.swift`, `App/VisionMarkApp.swift`
 - `Features/Conversion/*` — drop zone, file list, view model with bounded-concurrency
   `TaskGroup` batch conversion
 - `Features/Settings/SettingsView.swift`
@@ -66,7 +66,9 @@ because `startAccessingSecurityScopedResource()` was never called on the bookmar
   PDF to fairly assess heading/list mapping.
 - [ ] Pure scanned PDF → OCR triggers, produces reasonable text — not yet tried
 - [ ] Mixed PDF (text + scanned pages) → correct per-page routing — not yet tried
-- [ ] Large PDF (100+ pages) → memory/progress — not yet tried
+- [x] Large PDF (100+ pages) → memory/progress — **verified 2026-07-03** on the 352-page
+  `the-pragmatic-programmer.pdf`: completes in seconds, peak RSS **228 MB** after the autoreleasepool
+  fix (was 1.8 GB before). See "Image-safety" below.
 - [ ] Drag multiple files/a folder → correct per-file output — not yet tried
 - [ ] Cancel mid-conversion → partial state handled — not yet tried
 - [ ] Password-protected PDF → clear per-file failure — not yet tried
@@ -139,6 +141,29 @@ The write path works, but conversion *quality* on a diagram-heavy slide deck is 
 4. **No page separators.** Slides run together. `---` between pages helps *slide-like* pages but
    would fragment prose that flows across a page break — must be gated, not applied globally.
 5. **Decorative-glyph noise** (leading `+`, `‹`, truncated tokens like "ve"/"Debugl"). Low value.
+
+## Repository, CI & security — 2026-07-03
+
+**Git + GitHub.** Initialized git (`main`), first commit, pushed to
+**https://github.com/atomsbaza/VisionMark** (currently **PUBLIC**). Added `README.md` (features,
+build, architecture, privacy, limitations) and `.gitignore` that excludes the generated
+`VisionMark.xcodeproj/` (XcodeGen `project.yml` is the source of truth) plus build artifacts.
+The OUTER container folder is still `Work/Apple/PDFToMarkdown/` (not renamed).
+
+**Branch protection** on `main`: force-pushes and branch deletion blocked; admins exempt
+(`enforce_admins: false`) so solo direct pushes still work — no required PRs.
+
+**CI** — `.github/workflows/ci.yml`, GitHub Actions on `macos-15`, triggers on push to `main` and
+PRs: installs XcodeGen → `xcodegen generate` → `xcodebuild build` → `xcodebuild test`. First run
+green (build + 18 tests). Hardened: `permissions: contents: read` (least privilege). CI badge in
+README. Gotcha: pushing files under `.github/workflows/` needs the `gh` token to have the
+`workflow` scope — `gh auth refresh -h github.com -s workflow`.
+
+**Security.** Enabled GitHub secret scanning + push protection, and Dependabot alerts + security
+updates on the repo. Scanned with gitleaks + regex over tree and full history → **no secrets**.
+(Separately ran an account-wide audit of all 18 `atomsbaza` repos — all clean; secret scanning /
+Dependabot / branch protection rolled out across public repos. Private repos can't get server-side
+branch protection or secret scanning without GitHub Pro, but do have Dependabot.)
 
 ## Useful commands
 
