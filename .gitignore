@@ -21,3 +21,6 @@ xcuserdata/
 # XcodeGen generates the Xcode project from project.yml — regenerate with `xcodegen generate`.
 # project.yml is the source of truth and IS tracked.
 VisionMark.xcodeproj/
+
+# Local design specs — kept out of the public repo
+specs/
