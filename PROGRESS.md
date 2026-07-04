@@ -165,6 +165,35 @@ updates on the repo. Scanned with gitleaks + regex over tree and full history �
 Dependabot / branch protection rolled out across public repos. Private repos can't get server-side
 branch protection or secret scanning without GitHub Pro, but do have Dependabot.)
 
+## Output-quality pass — DESIGNED (2026-07-03), awaiting approval → writing-plans
+
+Brainstormed the next feature: improve Markdown output quality. Chose a **staged** approach
+(cheap→expensive). Design doc lives at **`specs/2026-07-03-output-quality-pass-design.md`** — this
+`specs/` folder is **gitignored on purpose** (the repo is public; design docs stay local, not
+tracked/pushed).
+
+- **Stage 1 — noise & page breaks (low risk):** in `ConversionPipeline`, keep per-page block arrays,
+  then (1a) strip repeated boilerplate — drop blocks whose normalized text appears on ≥50% of pages,
+  guarded by ≥4-page docs + <60-char lines; (1b) junk-glyph cleanup; (1c) `---` page separators
+  gated to image-embed mode so prose isn't fragmented.
+- **Stage 2 — heading detection (medium):** replace per-page `bodyFontSize` (misfires on sparse
+  slides) with a **global two-pass font baseline** computed across all pages, with per-page fallback.
+  Bold/italic/lists already work — headings only.
+- **Stage 3 — reading order (DEFERRED gate):** re-evaluate the geometric bounding-box re-sort only
+  after Stages 1–2 ship and we see real output. Circular/2D diagrams stay lossy (covered by images).
+
+**Status:** design committed locally then moved to gitignored `specs/`. Next step: user approves the
+spec → invoke `writing-plans` skill → implement Stage 1, then Stage 2.
+
+## Open threads (not started)
+
+- **Reliability sweep** — verify untested paths: custom output-folder mode (AppSettings bookmark
+  change, never E2E-tested), password-protected PDFs, cancel mid-run, multi-file/folder batch, OCR
+  on a scanned PDF, mixed text+scanned routing.
+- **Image disk-size trim** — 80 MB for 352 pages; optional lower DPI / high-quality JPEG.
+- **Ship-readiness** — app icon, notarized `.app` on GitHub Releases, maybe a Homebrew cask.
+- **Minor** — output overwrite without confirmation (data-loss guard).
+
 ## Useful commands
 
 ```
