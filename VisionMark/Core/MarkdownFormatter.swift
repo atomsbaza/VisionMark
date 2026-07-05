@@ -16,9 +16,40 @@ enum MarkdownFormatter {
         var isEmpty: Bool
     }
 
+    /// Builds a paragraph-occurrence-weighted, 0.5-bucketed font-size histogram for an
+    /// attributed string. Exposed so callers (e.g. the pipeline) can merge histograms across
+    /// pages to compute a document-wide body-font baseline (R4).
+    static func bodyFontHistogram(for attributedString: NSAttributedString) -> [CGFloat: Int] {
+        let paragraphs = extractParagraphs(from: attributedString)
+        return bodyFontHistogram(from: paragraphs)
+    }
+
+    /// Selects the body font size from a histogram: the size with max weight, ties broken by
+    /// the smallest size (body text is conventionally the most compact common size).
+    static func bodySize(fromHistogram histogram: [CGFloat: Int]) -> CGFloat {
+        guard let maxWeight = histogram.values.max() else { return 0 }
+        return histogram.filter { $0.value == maxWeight }.keys.min() ?? 0
+    }
+
+    /// Formats using a caller-supplied global body size for heading classification (R4).
+    /// When `bodySize <= 0` (degenerate/empty global histogram), falls back to the per-page
+    /// `format(_:)` behavior (R4-AC3).
+    static func format(_ attributedString: NSAttributedString, bodySize: CGFloat) -> MarkdownDocument {
+        guard bodySize > 0 else { return format(attributedString) }
+        let paragraphs = extractParagraphs(from: attributedString)
+        return format(paragraphs: paragraphs, bodySize: bodySize)
+    }
+
     static func format(_ attributedString: NSAttributedString) -> MarkdownDocument {
         let paragraphs = extractParagraphs(from: attributedString)
-        let bodySize = bodyFontSize(from: paragraphs)
+        let bodySize = bodySize(fromHistogram: bodyFontHistogram(from: paragraphs))
+        return format(paragraphs: paragraphs, bodySize: bodySize)
+    }
+
+    private static func format(
+        paragraphs: [ParagraphInfo],
+        bodySize: CGFloat
+    ) -> MarkdownDocument {
         let headingSizes = headingLevelSizes(from: paragraphs, bodySize: bodySize)
 
         var blocks: [Block] = []
@@ -184,17 +215,15 @@ enum MarkdownFormatter {
 
     // MARK: - Font-size histogram / heading clustering
 
-    private static func bodyFontSize(from paragraphs: [ParagraphInfo]) -> CGFloat {
+    private static func bodyFontHistogram(from paragraphs: [ParagraphInfo]) -> [CGFloat: Int] {
         // Weighted by paragraph occurrence (not character count) so that one long heading
-        // doesn't outweigh many short body paragraphs. Ties fall back to the smallest size,
-        // since body text is conventionally the most compact common size in a document.
+        // doesn't outweigh many short body paragraphs.
         var histogram: [CGFloat: Int] = [:]
         for paragraph in paragraphs where !paragraph.isEmpty && !paragraph.isBulleted {
             let bucket = (paragraph.fontSize * 2).rounded() / 2
             histogram[bucket, default: 0] += 1
         }
-        guard let maxWeight = histogram.values.max() else { return 0 }
-        return histogram.filter { $0.value == maxWeight }.keys.min() ?? 0
+        return histogram
     }
 
     private static func headingLevelSizes(from paragraphs: [ParagraphInfo], bodySize: CGFloat) -> [CGFloat] {

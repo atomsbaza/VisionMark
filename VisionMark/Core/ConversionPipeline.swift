@@ -58,7 +58,22 @@ actor ConversionPipeline {
         }
         let padWidth = pageCount >= 100 ? 3 : 2
 
-        var allBlocks: [Block] = []
+        // Pass 1: accumulate a document-wide body-font histogram across native-text pages
+        // (attributedString reads only — no rendering, so no autoreleasepool needed). This
+        // lets heading classification use a global baseline instead of misfiring on sparse
+        // pages whose per-page most-common font is their own title (R4).
+        var globalHistogram: [CGFloat: Int] = [:]
+        for index in 0..<pageCount {
+            try Task.checkCancellation()
+            guard let page = document.page(at: index) else { continue }
+            guard !classifier.needsOCR(page: page), let attributed = page.attributedString else { continue }
+            for (bucket, count) in MarkdownFormatter.bodyFontHistogram(for: attributed) {
+                globalHistogram[bucket, default: 0] += count
+            }
+        }
+        let globalBodySize = MarkdownFormatter.bodySize(fromHistogram: globalHistogram)
+
+        var pageBlockArrays: [[Block]] = []
         for index in 0..<pageCount {
             try Task.checkCancellation()
             guard let page = document.page(at: index) else { continue }
@@ -67,7 +82,9 @@ actor ConversionPipeline {
             if classifier.needsOCR(page: page) {
                 pageBlocks = try await ocrBlocks(for: page)
             } else if let attributed = page.attributedString {
-                pageBlocks = MarkdownFormatter.format(attributed).blocks
+                pageBlocks = globalBodySize > 0
+                    ? MarkdownFormatter.format(attributed, bodySize: globalBodySize).blocks
+                    : MarkdownFormatter.format(attributed).blocks
             } else {
                 pageBlocks = try await ocrBlocks(for: page)
             }
@@ -94,9 +111,13 @@ actor ConversionPipeline {
                 }
             }
 
-            allBlocks.append(contentsOf: combinedBlocks)
+            pageBlockArrays.append(combinedBlocks)
             onProgress(Double(index + 1) / Double(pageCount))
         }
+
+        pageBlockArrays = OutputCleanup.stripBoilerplate(pageBlockArrays)
+        pageBlockArrays = pageBlockArrays.map { page in page.compactMap(OutputCleanup.cleanJunkGlyphs) }
+        let allBlocks = OutputCleanup.flatten(pageBlockArrays, embedImages: embedImages)
 
         let markdown = MarkdownDocument(blocks: allBlocks).rendered
         try markdown.write(to: outputURL, atomically: true, encoding: .utf8)

@@ -128,4 +128,5 @@ final class MarkdownFormatterTests: XCTestCase {
         let doc = MarkdownFormatter.format(NSAttributedString(string: ""))
         XCTAssertTrue(doc.blocks.isEmpty)
     }
+
 }

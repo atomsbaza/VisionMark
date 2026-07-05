@@ -165,12 +165,32 @@ updates on the repo. Scanned with gitleaks + regex over tree and full history �
 Dependabot / branch protection rolled out across public repos. Private repos can't get server-side
 branch protection or secret scanning without GitHub Pro, but do have Dependabot.)
 
-## Output-quality pass — DESIGNED (2026-07-03), awaiting approval → writing-plans
+## Output-quality pass — Stage 1 & 2 IMPLEMENTED + verified (2026-07-05)
 
-Brainstormed the next feature: improve Markdown output quality. Chose a **staged** approach
-(cheap→expensive). Design doc lives at **`specs/2026-07-03-output-quality-pass-design.md`** — this
-`specs/` folder is **gitignored on purpose** (the repo is public; design docs stay local, not
-tracked/pushed).
+Improved Markdown output quality via a **staged** approach. Spec (Requirements/Design/Tasks) at
+**`specs/2026-07-03-output-quality-pass-design.md`** — the `specs/` folder is **gitignored on
+purpose** (the repo is public; design docs stay local). New code: `Core/OutputCleanup.swift`
+(Stage-1 passes), `Core/MarkdownFormatter.swift` (global heading baseline), `Core/MarkdownDocument.swift`
+(`.thematicBreak`), `Core/ConversionPipeline.swift` (two-pass wiring). **32 unit tests pass.**
+
+**Verified E2E:**
+- Loop_Engineering deck (17 pp, image mode): 16 `---` separators, images intact, footer boilerplate
+  mostly stripped (3 OCR-variant stragglers remain).
+- the-pragmatic-programmer (352 pp): headings 0 → **343** with proper `#`/`##`/`###` nesting;
+  recurring "This page intentionally left blank" fully eliminated by the absolute-count rule.
+
+**Design notes / deviations from the original spec:**
+- R1 boilerplate gained an **absolute-count rule**: a short (<60 char) line repeated verbatim on
+  **≥4 pages** is stripped even when below the 50%-of-pages ratio (kills low-frequency recurring
+  noise like blank-page notices / running footers).
+- A single-page "extreme-outlier heading" guard was tried and **reverted** — the absolute-count rule
+  superseded it and it didn't catch the residual (front-matter dedications remain as `#`; accepted).
+
+**Known limits (font-size heuristic ceiling):** flat-font slide decks yield few headings; a few
+single-page front-matter lines still over-detect. Real fix = the deferred Stage 3 (reading
+order / semantic layout).
+
+### (original design summary)
 
 - **Stage 1 — noise & page breaks (low risk):** in `ConversionPipeline`, keep per-page block arrays,
   then (1a) strip repeated boilerplate — drop blocks whose normalized text appears on ≥50% of pages,

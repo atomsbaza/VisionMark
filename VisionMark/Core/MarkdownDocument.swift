@@ -32,6 +32,7 @@ enum Block: Sendable, Equatable {
     case paragraph(runs: [InlineRun])
     case listItem(runs: [InlineRun])
     case image(altText: String, relativePath: String)
+    case thematicBreak
 
     var markdown: String {
         switch self {
@@ -43,6 +44,8 @@ enum Block: Sendable, Equatable {
             return "- " + runs.map(\.rendered).joined()
         case .image(let alt, let path):
             return "![\(alt)](\(path))"
+        case .thematicBreak:
+            return "---"
         }
     }
 }
