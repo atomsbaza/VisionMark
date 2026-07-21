@@ -13,7 +13,7 @@ enum OutputCleanup {
         switch block {
         case .heading(_, let runs), .paragraph(let runs), .listItem(let runs):
             return runs.map(\.text).joined()
-        case .image, .thematicBreak:
+        case .image, .thematicBreak, .codeBlock:
             return ""
         }
     }
@@ -25,7 +25,7 @@ enum OutputCleanup {
     private static func isTextBlock(_ block: Block) -> Bool {
         switch block {
         case .heading, .paragraph, .listItem: return true
-        case .image, .thematicBreak: return false
+        case .image, .thematicBreak, .codeBlock: return false
         }
     }
 
@@ -109,7 +109,7 @@ enum OutputCleanup {
             return .paragraph(runs: stripped(runs))
         case .listItem(let runs):
             return .listItem(runs: stripped(runs))
-        case .image, .thematicBreak:
+        case .image, .thematicBreak, .codeBlock:
             return block
         }
     }

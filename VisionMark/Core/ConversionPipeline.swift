@@ -100,8 +100,14 @@ actor ConversionPipeline {
                         do {
                             try PDFPageRenderer.writePNG(image, to: fileURL)
                             let relativePath = "\(assetsDirName)/\(fileName)"
+                            let altText: String
+                            if let title = Self.pageTitle(from: pageBlocks) {
+                                altText = "Page \(pageNumber) — \(title)"
+                            } else {
+                                altText = "Page \(pageNumber)"
+                            }
                             combinedBlocks.insert(
-                                .image(altText: "Page \(pageNumber)", relativePath: relativePath),
+                                .image(altText: altText, relativePath: relativePath),
                                 at: 0
                             )
                         } catch {
@@ -122,6 +128,43 @@ actor ConversionPipeline {
         let markdown = MarkdownDocument(blocks: allBlocks).rendered
         try markdown.write(to: outputURL, atomically: true, encoding: .utf8)
         return outputURL
+    }
+
+    /// The page's leading title text for descriptive alt text (R3): the first heading's plain
+    /// text, else the first paragraph's plain text; nil when the page has no text blocks at all
+    /// (R3-AC1/AC2). Sanitized (strips `[`, `]`, newlines) and truncated to 60 characters,
+    /// appending "…" when truncated (R3-AC3). Static/free so it's unit-testable without a PDF.
+    static func pageTitle(from blocks: [Block]) -> String? {
+        var firstHeadingText: String?
+        var firstParagraphText: String?
+        for block in blocks {
+            switch block {
+            case .heading:
+                if firstHeadingText == nil {
+                    firstHeadingText = OutputCleanup.plainText(of: block)
+                }
+            case .paragraph:
+                if firstParagraphText == nil {
+                    firstParagraphText = OutputCleanup.plainText(of: block)
+                }
+            default:
+                continue
+            }
+            if firstHeadingText != nil { break }
+        }
+
+        guard let rawTitle = firstHeadingText ?? firstParagraphText else { return nil }
+        return sanitizeAndTruncate(rawTitle)
+    }
+
+    private static func sanitizeAndTruncate(_ text: String, limit: Int = 60) -> String {
+        let sanitized = text
+            .replacingOccurrences(of: "[", with: "")
+            .replacingOccurrences(of: "]", with: "")
+            .components(separatedBy: .newlines)
+            .joined()
+        guard sanitized.count > limit else { return sanitized }
+        return String(sanitized.prefix(limit)) + "…"
     }
 
     private func ocrBlocks(for page: PDFPage) async throws -> [Block] {

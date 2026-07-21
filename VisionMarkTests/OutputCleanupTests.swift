@@ -130,4 +130,27 @@ final class OutputCleanupTests: XCTestCase {
         let flattened = OutputCleanup.flatten(pages, embedImages: false)
         XCTAssertFalse(flattened.contains(.thematicBreak))
     }
+
+    // MARK: - R2 (Text Polish v2): codeBlock excluded from cleanup
+
+    func testCodeBlockPlainTextIsEmpty() {
+        let block = Block.codeBlock(lines: ["print(\"hi\")"])
+        XCTAssertEqual(OutputCleanup.plainText(of: block), "")
+    }
+
+    func testCodeBlockIsNeverDroppedAsBoilerplateEvenWhenRepeatedVerbatim() {
+        let code = Block.codeBlock(lines: ["print(\"hi\")"])
+        let pages: [[Block]] = [
+            [code], [code], [code], [code],
+        ]
+        let result = OutputCleanup.stripBoilerplate(pages)
+        for page in result {
+            XCTAssertEqual(page, [code], "codeBlock text must never be treated as boilerplate")
+        }
+    }
+
+    func testCodeBlockIsUntouchedByJunkGlyphCleanup() {
+        let code = Block.codeBlock(lines: ["+ not a decorative glyph, this is code"])
+        XCTAssertEqual(OutputCleanup.cleanJunkGlyphs(code), code)
+    }
 }

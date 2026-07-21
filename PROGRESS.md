@@ -205,6 +205,36 @@ order / semantic layout).
 **Status:** design committed locally then moved to gitignored `specs/`. Next step: user approves the
 spec → invoke `writing-plans` skill → implement Stage 1, then Stage 2.
 
+## Text-polish v2 (R1 hyphens, R2 code blocks, R3 alt text) — IMPLEMENTED + verified (2026-07-22)
+
+Three cheap, low-risk text-quality wins on top of the Stage 1 & 2 output-quality pass. Spec at
+**`specs/2026-07-05-text-polish-v2-design.md`** (gitignored, local). Implemented across
+`Core/MarkdownFormatter.swift` (hyphen-join helper `shouldJoinHyphenated`, monospace detection,
+code-line grouping, histogram exclusion), `Core/MarkdownDocument.swift` (`.codeBlock` case),
+`Core/OutputCleanup.swift` (code blocks exempt from cleanup), `Core/ConversionPipeline.swift`
+(`pageTitle(from:)` + `Page N — <title>` alt text). Unit tests grew 32 → 54 (after removing the
+temp E2E harness).
+
+**Verified E2E** on the 352-page the-pragmatic-programmer.pdf (2026-07-22):
+- **R3 verified** — 352/352 images carry titled alt text with 60-char truncation.
+- **R1 verified** — remaining `letter- letter` artifacts in output are either legitimate suspended
+  hyphens ("intra- and intercorporate") or sit in Stage-3 scrambled-reading-order regions (exercise
+  pages) where the merge seam never forms.
+- **R2: zero code fences on this book — a PDFKit limitation, not a code bug.**
+  `PDFPage.attributedString` resolves ALL of this book's embedded font subsets to Helvetica
+  (probed: 100% Helvetica/Helvetica-Bold across sampled pages), so no font-based signal survives.
+  Geometric fallback investigated and rejected: true glyph advances via `characterBounds` x-deltas
+  give coefficient-of-variation ~0.38 (code) vs ~0.34 (prose) — no usable separation; any threshold
+  that catches code would false-fence prose, violating AC5.
+
+**Consequences recorded:** code fences appear only on PDFs whose embedded fonts map to real
+families (e.g. digitally exported docs using Menlo/Courier); zero false fences on the all-Helvetica
+book is the strongest AC5 evidence. Known edge: a plain-text printout PDF (cupsfilter-style,
+genuinely all-Courier) would render entirely as code blocks — semantically defensible for
+preformatted printouts, accepted.
+
+**Real fix** for code-in-print-PDFs = Vision/layout analysis, folded into the deferred Stage 3.
+
 ## Open threads (not started)
 
 - **Reliability sweep** — verify untested paths: custom output-folder mode (AppSettings bookmark

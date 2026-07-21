@@ -14,6 +14,12 @@ enum MarkdownFormatter {
         var fontSize: CGFloat
         var isBulleted: Bool
         var isEmpty: Bool
+        /// True when the line's dominant font is monospaced (R2-AC1). Code lines skip
+        /// bullet/heading/paragraph/hyphen handling and are grouped into `.codeBlock`s instead.
+        var isCode: Bool = false
+        /// Raw (un-marked-up) line text, populated only for code lines — used verbatim in the
+        /// rendered code block (R2-AC2).
+        var rawText: String = ""
     }
 
     /// Builds a paragraph-occurrence-weighted, 0.5-bucketed font-size histogram for an
@@ -54,6 +60,7 @@ enum MarkdownFormatter {
 
         var blocks: [Block] = []
         var pendingParagraphRuns: [InlineRun] = []
+        var pendingCodeLines: [String] = []
 
         func flushParagraph() {
             guard !pendingParagraphRuns.isEmpty else { return }
@@ -61,7 +68,20 @@ enum MarkdownFormatter {
             pendingParagraphRuns = []
         }
 
+        func flushCodeBlock() {
+            guard !pendingCodeLines.isEmpty else { return }
+            blocks.append(.codeBlock(lines: pendingCodeLines))
+            pendingCodeLines = []
+        }
+
         for paragraph in paragraphs {
+            if paragraph.isCode {
+                flushParagraph()
+                pendingCodeLines.append(paragraph.rawText)
+                continue
+            }
+            flushCodeBlock()
+
             if paragraph.isEmpty {
                 flushParagraph()
                 continue
@@ -81,14 +101,36 @@ enum MarkdownFormatter {
 
             if pendingParagraphRuns.isEmpty {
                 pendingParagraphRuns = paragraph.runs
+            } else if let lastText = pendingParagraphRuns.last?.text,
+                      let firstText = paragraph.runs.first?.text,
+                      shouldJoinHyphenated(lastText: lastText, nextText: firstText) {
+                var lastRun = pendingParagraphRuns[pendingParagraphRuns.count - 1]
+                lastRun.text.removeLast()
+                pendingParagraphRuns[pendingParagraphRuns.count - 1] = lastRun
+                pendingParagraphRuns.append(contentsOf: paragraph.runs)
             } else {
                 pendingParagraphRuns.append(InlineRun(text: " "))
                 pendingParagraphRuns.append(contentsOf: paragraph.runs)
             }
         }
         flushParagraph()
+        flushCodeBlock()
 
         return MarkdownDocument(blocks: blocks)
+    }
+
+    // MARK: - R1: hyphenation repair at line-merge seam
+
+    /// Decides whether two paragraph-merge seam runs should be joined by removing the trailing
+    /// hyphen (no space), rather than the default single-space join. True only when `lastText`
+    /// ends with a letter immediately followed by `-`, and `nextText` starts with a lowercase
+    /// letter (R1-AC1/AC2/AC3).
+    static func shouldJoinHyphenated(lastText: String, nextText: String) -> Bool {
+        guard lastText.hasSuffix("-"), lastText.count >= 2 else { return false }
+        let beforeHyphen = lastText[lastText.index(lastText.endIndex, offsetBy: -2)]
+        guard beforeHyphen.isLetter else { return false }
+        guard let firstChar = nextText.first, firstChar.isLowercase else { return false }
+        return true
     }
 
     // MARK: - Paragraph extraction
@@ -108,6 +150,18 @@ enum MarkdownFormatter {
             }
 
             let lineAttributed = attributedString.attributedSubstring(from: range)
+            if let dominant = dominantFont(in: lineAttributed), isMonospace(dominant) {
+                paragraphs.append(ParagraphInfo(
+                    runs: [],
+                    fontSize: dominant.pointSize,
+                    isBulleted: false,
+                    isEmpty: false,
+                    isCode: true,
+                    rawText: trimmed
+                ))
+                return
+            }
+
             let (isBulleted, strippedAttributed) = stripBulletPrefix(lineAttributed)
             let runs = inlineRuns(from: strippedAttributed)
             let fontSize = dominantFontSize(in: strippedAttributed)
@@ -213,13 +267,41 @@ enum MarkdownFormatter {
         #endif
     }
 
+    /// The line's dominant font: the font with the greatest length-weighted coverage, same
+    /// weighting logic as `dominantFontSize`, applied to the font itself rather than its size
+    /// (R2-AC1).
+    private static func dominantFont(in attributed: NSAttributedString) -> NSFont? {
+        #if canImport(AppKit)
+        guard attributed.length > 0 else { return nil }
+        var lengths: [String: (font: NSFont, length: Int)] = [:]
+        attributed.enumerateAttribute(.font, in: NSRange(location: 0, length: attributed.length), options: []) { value, range, _ in
+            guard let font = value as? NSFont else { return }
+            let key = "\(font.fontName)_\(font.pointSize)"
+            lengths[key, default: (font, 0)].length += range.length
+        }
+        return lengths.values.max(by: { $0.length < $1.length })?.font
+        #else
+        return nil
+        #endif
+    }
+
+    /// Whether `font` is monospaced: symbolic trait check first, then a family/name-based
+    /// fallback list, since some monospace fonts (e.g. Menlo on macOS) may not consistently
+    /// report the `.monoSpace` symbolic trait (R2-AC1).
+    static func isMonospace(_ font: NSFont) -> Bool {
+        if font.fontDescriptor.symbolicTraits.contains(.monoSpace) { return true }
+        let monospaceKeywords = ["Courier", "Menlo", "Monaco", "Mono", "Consolas"]
+        let name = font.familyName ?? font.fontName
+        return monospaceKeywords.contains { name.range(of: $0, options: .caseInsensitive) != nil }
+    }
+
     // MARK: - Font-size histogram / heading clustering
 
     private static func bodyFontHistogram(from paragraphs: [ParagraphInfo]) -> [CGFloat: Int] {
         // Weighted by paragraph occurrence (not character count) so that one long heading
         // doesn't outweigh many short body paragraphs.
         var histogram: [CGFloat: Int] = [:]
-        for paragraph in paragraphs where !paragraph.isEmpty && !paragraph.isBulleted {
+        for paragraph in paragraphs where !paragraph.isEmpty && !paragraph.isBulleted && !paragraph.isCode {
             let bucket = (paragraph.fontSize * 2).rounded() / 2
             histogram[bucket, default: 0] += 1
         }
